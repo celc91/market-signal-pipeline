@@ -1,29 +1,29 @@
-"""Download daily OHLCV prices from Stooq and store them as Parquet.
+"""Download daily OHLCV prices from Yahoo Finance and store them as Parquet.
 
-Stooq serves plain CSV without an API key. The data is used locally only and
-is never committed to the repository.
+No API key is required. Data is used locally only and is never committed to
+the repository. Yahoo's terms apply; this is an educational project, not a
+redistribution service.
 """
 
 from __future__ import annotations
 
 import argparse
-import io
 import sys
-from datetime import date
+import time
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 import requests
 
-STOOQ_URL = "https://stooq.com/q/d/l/"
+CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 COLUMNS = ["date", "open", "high", "low", "close", "volume"]
 TICKERS = ["SPY", "QQQ", "IWM", "DIA"]
 
 
-def stooq_symbol(ticker: str) -> str:
-    """Map a US ticker to its Stooq symbol (e.g. SPY -> spy.us)."""
-    ticker = ticker.lower().strip()
-    return ticker if "." in ticker else f"{ticker}.us"
+def _epoch(day: date) -> int:
+    return int(datetime(day.year, day.month, day.day, tzinfo=timezone.utc).timestamp())
 
 
 def download_prices(
@@ -31,38 +31,62 @@ def download_prices(
     start: date,
     end: date | None = None,
     timeout: int = 30,
+    retries: int = 3,
 ) -> pd.DataFrame:
     """Return a tidy OHLCV frame for one ticker.
 
-    Raises ValueError when Stooq answers with anything other than a CSV table,
-    which happens when the symbol does not exist.
+    Yahoo answers 429 when it rate-limits; retry with a short backoff before
+    giving up. Raises ValueError when the payload has no usable rows.
     """
     params = {
-        "s": stooq_symbol(ticker),
-        "i": "d",
-        "d1": start.strftime("%Y%m%d"),
-        "d2": (end or date.today()).strftime("%Y%m%d"),
+        "period1": _epoch(start),
+        "period2": _epoch(end or date.today()),
+        "interval": "1d",
+        "events": "div,splits",
     }
-    response = requests.get(STOOQ_URL, params=params, timeout=timeout)
-    response.raise_for_status()
 
-    text = response.text.strip()
-    if not text.lower().startswith("date,"):
-        raise ValueError(f"Unexpected Stooq response for {ticker}: {text[:80]!r}")
+    last_error: Exception | None = None
+    for attempt in range(retries):
+        response = requests.get(
+            CHART_URL.format(ticker=ticker.upper()),
+            params=params,
+            headers=HEADERS,
+            timeout=timeout,
+        )
+        if response.status_code == 429:
+            last_error = requests.HTTPError("429 Too Many Requests")
+            time.sleep(2 * (attempt + 1))
+            continue
+        response.raise_for_status()
+        break
+    else:
+        raise ValueError(f"Yahoo kept rate-limiting {ticker}: {last_error}")
 
-    frame = pd.read_csv(io.StringIO(text))
-    frame.columns = [column.strip().lower() for column in frame.columns]
-    missing = set(COLUMNS) - set(frame.columns)
-    if missing:
-        raise ValueError(f"Missing columns for {ticker}: {sorted(missing)}")
+    payload = response.json()
+    results = payload.get("chart", {}).get("result") or []
+    if not results:
+        error = payload.get("chart", {}).get("error", {})
+        raise ValueError(f"No data for {ticker}: {error.get('description', 'empty result')}")
 
-    frame["date"] = pd.to_datetime(frame["date"]).dt.date
+    result = results[0]
+    timestamps = result.get("timestamp") or []
+    quote = (result.get("indicators", {}).get("quote") or [{}])[0]
+
+    frame = pd.DataFrame(
+        {
+            "date": [datetime.fromtimestamp(ts, tz=timezone.utc).date() for ts in timestamps],
+            "open": quote.get("open"),
+            "high": quote.get("high"),
+            "low": quote.get("low"),
+            "close": quote.get("close"),
+            "volume": quote.get("volume"),
+        }
+    )
     frame["ticker"] = ticker.upper()
-    frame = frame[["date", "ticker", *COLUMNS[1:]]].sort_values("date")
-
-    # Stooq reports zero-volume rows for some holidays; drop them.
-    frame = frame[frame["volume"] > 0].reset_index(drop=True)
-    return frame
+    frame = frame[COLUMNS + ["ticker"]]
+    frame = frame.dropna(subset=["open", "high", "low", "close"])
+    frame = frame[frame["volume"].fillna(0) > 0]
+    return frame.sort_values("date").reset_index(drop=True)
 
 
 def write_parquet(frame: pd.DataFrame, output: Path) -> None:
@@ -79,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     frames = []
-    for ticker in args.tickers:
+    for position, ticker in enumerate(args.tickers):
         try:
             frame = download_prices(ticker, args.start, args.end)
         except (requests.RequestException, ValueError) as exc:
@@ -90,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
             f"({frame['date'].min()} -> {frame['date'].max()})"
         )
         frames.append(frame)
+        if position < len(args.tickers) - 1:
+            time.sleep(1)
 
     if not frames:
         print("No data downloaded.", file=sys.stderr)

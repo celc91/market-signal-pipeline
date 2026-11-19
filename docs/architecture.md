@@ -2,9 +2,9 @@
 
 ## Layers
 
-1. **Ingestion** (`src/market_signals/ingest`) pulls daily OHLCV CSVs from
-   Stooq and writes a single Parquet file. Stateless and idempotent: rerunning
-   it replaces the file.
+1. **Ingestion** (`src/market_signals/ingest`) pulls daily OHLCV from the
+   Yahoo Finance chart API and writes a single Parquet file. Stateless and
+   idempotent: rerunning it replaces the file.
 2. **Feature engineering** (`src/market_signals/features`) produces one row per
    ticker and trading day with price, volatility, volume and calendar features,
    plus the forward 5-day return used as the label.

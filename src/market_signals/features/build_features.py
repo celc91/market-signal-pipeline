@@ -62,7 +62,7 @@ def add_features(frame: pd.DataFrame) -> pd.DataFrame:
     out["gap_pct"] = out["open"] / close.shift(1) - 1
 
     dates = pd.to_datetime(out["date"])
-    out["day_of_week"] = dates.dt.dayofweek
+    out["day_of_week"] = dates.dt.day_of_week
     out["month"] = dates.dt.month
     return out
 

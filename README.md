@@ -28,7 +28,7 @@ Engineer certification. Every week adds a piece of the production stack:
 
 ```mermaid
 flowchart LR
-    A[Stooq daily prices] --> B[Cloud Run / local ingest]
+    A[Yahoo Finance daily prices] --> B[Cloud Run / local ingest]
     B --> C[GCS raw Parquet]
     C --> D[BigQuery raw_prices]
     D --> E[Features SQL / Python]
@@ -106,16 +106,35 @@ See `docs/decisions/0001-problem-framing.md`.
 
 ## Data
 
-Daily OHLCV from [Stooq](https://stooq.com/) public CSV endpoints. No data is
-committed to this repository; `data/` is ignored. Check Stooq's terms before
-any redistribution or commercial use.
+Daily OHLCV from the public **Yahoo Finance chart API** (no key required).
+No data is committed to this repository; `data/` is ignored. Yahoo's terms
+apply: this is an educational project, not a data redistribution service.
+
+## First baseline (no edge yet)
+
+Local baseline before BigQuery ML, temporal split at 2022-12-31:
+
+| Model | AUC | Log loss | Accuracy | Precision top 10% |
+|---|---|---|---|---|
+| Naive (always up) | 0.500 | — | 0.575 | 0.575 |
+| Logistic regression | 0.497 | 0.694 | 0.485 | 0.589 |
+| Hist. gradient boosting | 0.494 | 0.701 | 0.549 | 0.587 |
+
+Train: 12,892 rows. Test: 3,872 rows (2023-01-03 → 2026-11-10). Positive rate: 57.5%.
+
+These numbers are the point of the project: the pipeline runs end to end and
+the evaluation is honest. With these features and a 5-day horizon, both models
+are indistinguishable from a coin flip and the naive rule wins on accuracy.
+The next iterations test regime features, other horizons and a cross-sectional
+ranking target. If nothing beats the baseline, this repo will say so.
 
 ## Status
 
 - [x] Repository scaffold
 - [x] Ingestion script
 - [x] Feature engineering (Python + SQL)
-- [x] BigQuery ML baseline
+- [x] Local baseline with honest evaluation
+- [ ] BigQuery ML baseline (needs a GCP account)
 - [ ] Evaluation report and cost-aware backtest
 - [ ] Vertex AI custom training
 - [ ] Vertex Pipelines + Cloud Build
