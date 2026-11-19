@@ -93,6 +93,20 @@ export GCP_PROJECT=your-project-id
 export BQ_DATASET=market_signals
 ```
 
+### BigQuery sandbox
+
+This project runs on the **BigQuery sandbox** (no billing account required):
+1 TiB of queries per month, tables expire after 60 days, and DML/streaming are
+not available. `bq load` and `CREATE MODEL` work, which is all this pipeline
+needs. Training a model on the current table processes ~30 GB, so keep an eye
+on the monthly quota.
+
+```bash
+bq mk --dataset --location=US "$GCP_PROJECT:market_signals"
+bq load --source_format=PARQUET "$GCP_PROJECT:market_signals.features" data/processed/features.parquet
+bq query --use_legacy_sql=false < sql/02_train_bqml.sql   # replace YOUR_PROJECT_ID first
+```
+
 ## Problem framing
 
 - **Universe:** liquid US ETFs (SPY, QQQ, IWM, DIA).
@@ -119,6 +133,7 @@ Local baseline before BigQuery ML, temporal split at 2022-12-31:
 | Naive (always up) | 0.500 | — | 0.575 | 0.575 |
 | Logistic regression | 0.497 | 0.694 | 0.485 | 0.589 |
 | Hist. gradient boosting | 0.494 | 0.701 | 0.549 | 0.587 |
+| BigQuery ML (boosted trees) | 0.498 | 0.714 | 0.494 | — |
 
 Train: 12,892 rows. Test: 3,872 rows (2023-01-03 → 2026-11-10). Positive rate: 57.5%.
 
@@ -134,7 +149,7 @@ ranking target. If nothing beats the baseline, this repo will say so.
 - [x] Ingestion script
 - [x] Feature engineering (Python + SQL)
 - [x] Local baseline with honest evaluation
-- [ ] BigQuery ML baseline (needs a GCP account)
+- [x] BigQuery ML baseline (sandbox, no billing account)
 - [ ] Evaluation report and cost-aware backtest
 - [ ] Vertex AI custom training
 - [ ] Vertex Pipelines + Cloud Build
