@@ -1,5 +1,9 @@
 # Market Signal Pipeline
 
+[![ci](https://github.com/celc91/market-signal-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/celc91/market-signal-pipeline/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+
 End-to-end machine learning pipeline for market signals on Google Cloud:
 ingestion, feature engineering in BigQuery, training with BigQuery ML and
 Vertex AI, batch/online serving, and drift monitoring.
@@ -60,6 +64,7 @@ flowchart LR
 │   └── 04_predict.sql
 ├── docs/
 │   ├── architecture.md
+│   ├── model-card.md
 │   └── decisions/0001-problem-framing.md
 ├── tests/test_features.py
 └── .github/workflows/ci.yml
@@ -135,6 +140,10 @@ Local baseline before BigQuery ML, temporal split at 2022-12-31:
 | Hist. gradient boosting | 0.494 | 0.701 | 0.549 | 0.587 |
 | BigQuery ML (boosted trees) | 0.498 | 0.714 | 0.494 | — |
 
+![ROC AUC by model](docs/assets/model_auc.png)
+
+![BigQuery ML confusion matrix](docs/assets/confusion_matrix.png)
+
 Train: 12,892 rows. Test: 3,872 rows (2023-01-03 → 2026-11-10). Positive rate: 57.5%.
 
 These numbers are the point of the project: the pipeline runs end to end and
@@ -142,6 +151,14 @@ the evaluation is honest. With these features and a 5-day horizon, both models
 are indistinguishable from a coin flip and the naive rule wins on accuracy.
 The next iterations test regime features, other horizons and a cross-sectional
 ranking target. If nothing beats the baseline, this repo will say so.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Model card](docs/model-card.md)
+- [ADR 0001 — problem framing](docs/decisions/0001-problem-framing.md)
+- [Local baseline metrics](reports/baseline_metrics.json)
+- [BigQuery ML metrics](reports/bqml_metrics.json)
 
 ## Status
 
