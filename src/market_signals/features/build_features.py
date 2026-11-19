@@ -72,6 +72,8 @@ def add_target(frame: pd.DataFrame, horizon: int = HORIZON) -> pd.DataFrame:
     out = frame.copy()
     out["fwd_ret"] = out["close"].shift(-horizon) / out["close"] - 1
     out["label"] = (out["fwd_ret"] > 0).astype("Int64")
+    # NaN > 0 evaluates to False; keep the last rows unlabelled instead.
+    out.loc[out["fwd_ret"].isna(), "label"] = pd.NA
     return out
 
 
@@ -107,7 +109,7 @@ def build_features(prices: pd.DataFrame) -> pd.DataFrame:
         "month",
     ]
     features = features.dropna(subset=feature_columns)
-    features = features.dropna(subset=["label"])
+    features = features.dropna(subset=["fwd_ret", "label"])
     features["label"] = features["label"].astype(int)
     return features.sort_values(["date", "ticker"]).reset_index(drop=True)
 
