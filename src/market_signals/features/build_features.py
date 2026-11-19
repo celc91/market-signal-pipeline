@@ -83,7 +83,7 @@ def build_features(prices: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Missing columns: {sorted(missing)}")
 
     frames = []
-    for ticker, group in prices.groupby("ticker", sort=True):
+    for _, group in prices.groupby("ticker", sort=True):
         if len(group) < 60:
             continue
         enriched = add_target(add_features(group))

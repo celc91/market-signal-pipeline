@@ -85,7 +85,10 @@ def main(argv: list[str] | None = None) -> int:
         except (requests.RequestException, ValueError) as exc:
             print(f"[skip] {ticker}: {exc}", file=sys.stderr)
             continue
-        print(f"[ok] {ticker}: {len(frame):,} rows ({frame['date'].min()} -> {frame['date'].max()})")
+        print(
+            f"[ok] {ticker}: {len(frame):,} rows "
+            f"({frame['date'].min()} -> {frame['date'].max()})"
+        )
         frames.append(frame)
 
     if not frames:
