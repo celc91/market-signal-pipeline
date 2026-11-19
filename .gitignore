@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Data (never commit market data or credentials)
+data/*
+!data/README.md
+*.parquet
+*.csv
+!docs/**/*.csv
+
+# Notebooks
+.ipynb_checkpoints/
+
+# GCP
+*.json
+!config/*.json
+.credentials/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
